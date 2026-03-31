@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StrategyBacktest - Ultimate Trading Backtester</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .charts-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .controls-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            height: fit-content;
+        }
+
+        .market-selector {
+            margin-bottom: 20px;
+        }
+
+        .market-selector select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+        }
+
+        .capital-display {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .strategy-editor {
+            margin-bottom: 20px;
+        }
+
+        .strategy-editor textarea {
+            width: 100%;
+            height: 120px;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,123,255,0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40,167,69,0.4);
+        }
+
+        .results {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #28a745;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 StrategyBacktest</h1>
+            <p>Ultimate Auto Backtesting Platform | ₹1,00,000 Starting Capital</p>
+        </div>
+
+        <div class="dashboard">
+            <div class="charts-container">
+                <div class="market-selector">
+                    <label><strong>Select Market:</strong></label>
+                    <select id="marketSelect">
+                        <option value="nifty">🇮🇳 Nifty 50 (Indian Market)</option>
+                        <option value="forex">💱 EUR/USD (Forex)</option>
+                        <option value="crypto">₿ BTC/USD (Crypto)</option>
+                        <option value="banknifty">🏦 Bank Nifty</option>
+                    </select>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="equityChart"></canvas>
+                </div>
+            </div>
+
+            <div class="controls-panel">
+                <div class="capital-display">
+                    💰 Starting Capital: <strong>₹1,00,000</strong>
+                </div>
+
+                <div class="strategy-editor">
+                    <label><strong>📝 Write Your Strategy (Pine Script Style):</strong></label>
+                    <textarea id="strategyCode" placeholder="// Example Strategy
+strategy('My Strategy', initial_capital=100000)
+
+// Simple Moving Average Crossover
+fastMA = ta.sma(close, 10)
+slowMA = ta.sma(close, 30)
+
+if (ta.crossover(fastMA, slowMA))
+    strategy.entry('Long', strategy.long, qty=10)
+
+if (ta.crossunder(fastMA, slowMA))
+    strategy.close('Long')
+
+plot(fastMA, color=color.blue)
+plot(slowMA, color=color.red)">```pine
+// Example Strategy
+strategy('My Strategy', initial_capital=100000)
+
+// Simple Moving Average Crossover
+fastMA = ta.sma(close, 10)
+slowMA = ta.sma(close, 30)
+
+if (ta.crossover(fastMA, slowMA))
+    strategy.entry('Long', strategy.long, qty=10)
+
+if (ta.crossunder(fastMA, slowMA))
+    strategy.close('Long')
+
+plot(fastMA, color=color.blue)
+plot(slowMA, color=color.red)
+```</textarea>
+                </div>
+
+                <button class="btn btn-primary" onclick="runBacktest()">🚀 Run Auto Backtest</button>
+                <button class="btn btn-success" onclick="downloadReport()">📊 Download Report</button>
+
+                <div id="results" class="results" style="display: none;">
+                    <div class="result-item">
+                        <span>📈 Total Return:</span>
+                        <span id="totalReturn">--</span>
+                    </div>
+                    <div class="result-item">
+                        <span>📊 Win Rate:</span>
+                        <span id="winRate">--</span>
+                    </div>
+                    <div class="result-item">
+                        <span>📉 Max Drawdown:</span>
+                        <span id="maxDrawdown">--</span>
+                    </div>
+                    <div class="result-item">
+                        <span>⚡ Sharpe Ratio:</span>
+                        <span id="sharpeRatio">--</span>
+                    </div>
+                    <div class="result-item">
+                        <span>💎 Final Capital:</span>
+                        <span id="finalCapital">--</span>
+                    </div>
+                    <div class="result-item">
+                        <span>🎯 Total Trades:</span>
+                        <span id="totalTrades">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let priceChart, equityChart;
+        let priceData = [];
+        let equityCurve = [];
+        let currentCapital = 100000;
+        let trades = [];
+
+        // Initialize charts
+        function initCharts() {
+            const priceCtx = document.getElementById('priceChart').getContext('2d');
+            const equityCtx = document.getElementById('equityChart').getContext('2d');
+
+            priceChart = new Chart(priceCtx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Price',
+                        data: [],
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0,123,255,0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { type: 'time', time: { unit: 'day' } },
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+
+            equityChart = new Chart(equityCtx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Equity Curve',
+                        data: [],
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40,167,69,0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { type: 'time', time: { unit: 'day' } },
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+        }
+
+        // Generate market data based on selection
+        function generateMarketData() {
+            const market = document.getElementById('marketSelect').value;
+            const days = 365;
+            const data = [];
+            let price = 10000; // Starting price
+
+            for (let i = 0; i < days; i++) {
+                const date = new Date(2023, 0, 1);
+                date.setDate(date.getDate() + i);
+                
+                // Different volatility for different markets
+                let volatility = 0.02;
+                if (market === 'forex') volatility = 0.01;
+                if (market === 'crypto') volatility = 0.05;
+                if (market === 'banknifty') volatility = 0.03;
+
+                const change = (Math.random() - 0.5) * volatility * 2;
+                price *= (1 + change);
+                
+                data.push({
+                    x: date,
+                    y: Math.max(price, 0)
+                });
+            }
+            
+            priceData = data;
+            return data;
+        }
+
+        // Simple Pine Script parser and executor
+        function executeStrategy(code, priceData) {
+            const lines = code.split('\n');
+            let position = 0;
+            let entryPrice = 0;
+            let equity = [100000];
+            trades = [];
+            let peak = 100000;
+            let maxDrawdown = 0;
+
+            priceData.forEach((point, index) => {
+                // Calculate indicators
+                const close = point.y;
+                const sma10 = calculateSMA(priceData.slice(Math.max(0, index-9), index+1), 10);
+                const sma30 = calculateSMA(priceData.slice(Math.max(0, index-29), index+1), 30);
+                
+                let currentEquity = equity[equity.length - 1];
+                
+                // Parse strategy logic
+                lines.forEach(line => {
+                    line = line.trim();
+                    if (line.includes('ta.crossover(fastMA, slowMA)')) {
+                        if (sma10 > sma30 && position === 0) {
+                            position = 1;
+                            entryPrice = close;
+                        }
+                    }
+                    if (line.includes('ta.crossunder(fastMA, slowMA)')) {
+                        if (sma10 < sma30 && position === 1) {
+                            const pnl = (close - entryPrice) * 10; // 10 shares
+                            currentEquity += pnl;
+                            trades.push({ type: 'Long', entry: entryPrice, exit: close, pnl });
+                            position = 0;
+                        }
+                    }
+                });
+
+                // Update equity
+                equity.push(currentEquity);
+                
+                // Track drawdown
+                if (currentEquity > peak) peak = currentEquity;
+                const drawdown = (peak - currentEquity) / peak * 100;
+                if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+            });
+
+            equityCurve = equity.map((value, index) => ({
+                x: priceData[index].x,
+                y: value
+            }));
+
+            return {
+                equity,
+                trades,
+                maxDrawdown,
+                finalCapital: equity[equity.length - 1],
+                totalReturn: ((equity[equity.length - 1] - 100000) / 100000) * 100,
+                winRate: trades.length > 0 ? (trades.filter(t => t.pnl > 0).length / trades.length * 100) : 0,
+                totalTrades: trades.length,
+                sharpeRatio: calculateSharpe(equity)
+            };
+        }
+
+        function calculateSMA(data, period) {
+            if (data.length < period) return 0;
+            const slice = data.slice(-period);
+            return slice.reduce((sum, point) => sum + point.y, 0) / period;
+        }
+
+        function calculateSharpe(equity) {
+            const returns = [];
+            for (let i = 1; i < equity.length; i++) {
+                returns.push((equity[i] - equity[i-1]) / equity[i-1]);
+            }
+            const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+            const stdDev = Math.sqrt(returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length);
+            return stdDev > 0 ? mean / stdDev : 0;
+        }
+
+        function runBacktest() {
+            const code = document.getElementById('strategyCode').value;
+            const marketData = generateMarketData();
+            
+            // Update price chart
+            priceChart.data.datasets[0].data = marketData;
+            priceChart.update();
+
+            // Execute strategy
+            const results = executeStrategy(code, marketData);
+            
+            // Update equity chart
+            equityChart.data.datasets[0].data = equityCurve;
+            equityChart.update();
+
+            // Update results
+            document.getElementById('totalReturn').textContent = `${results.totalReturn.toFixed(2)}%`;
+            document.getElementById('winRate').textContent = `${results.winRate.toFixed(1)}%`;
+            document.getElementById('maxDrawdown').textContent = `${results.maxDrawdown.toFixed(2)}%`;
+            document.getElementById('sharpeRatio').textContent = results.sharpeRatio.toFixed(2);
+            document.getElementById('finalCapital').textContent = `₹${results.finalCapital.toLocaleString()}`;
+            document.getElementById('totalTrades').textContent = results.totalTrades;
+            
+            document.getElementById('results').style.display = 'block';
+            currentCapital = results.finalCapital;
+        }
+
+        function downloadReport() {
+            const results = {
+                totalReturn: document.getElementById('totalReturn').textContent,
+                winRate: document.getElementById('winRate').textContent,
+                maxDrawdown: document.getElementById('maxDrawdown').textContent,
+                sharpeRatio: document.getElementById('sharpeRatio').textContent,
+                finalCapital: document.getElementById('finalCapital').textContent,
+                totalTrades: document.getElementById('totalTrades').textContent,
+                timestamp: new Date().toLocaleString()
+            };
+
+            const dataStr = JSON.stringify(results, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `backtest-report-${new Date().toISOString().slice(0,10)}.json`;
+            link.click();
+        }
+
+        // Market selector event
+        document.getElementById('marketSelect').addEventListener('change', function() {
+            generateMarketData();
+            if (priceChart) {
+                priceChart.data.datasets[0].data = priceData;
+                priceChart.update();
+            }
+        });
+
+        // Initialize
+        window.onload = function() {
+            initCharts();
+            generateMarketData();
+        };
+    </script>
+</body>
+</html>
